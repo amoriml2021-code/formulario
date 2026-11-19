@@ -13,6 +13,15 @@
    As tabelas e os gatilhos de bloqueio são criados sozinhos no primeiro acesso.
 5. Em "Usuários", crie os acessos. Para trocar a senha do admin depois, use "Redefinir senha".
 
+## Atenção no Vercel
+- Só VOCÊ precisa de conta no GitHub e no Vercel. Os usuários só abrem o endereço do site e entram com login e senha criados em "Usuários".
+- Em Settings > Deployment Protection do projeto, deixe a proteção desativada (ou sem "Vercel Authentication") para o endereço de produção; senão o Vercel pede o login dele a quem abrir.
+
+## Funções de balança e hora
+- Cadastros > Balanças; marque o formulário como "Usa balança"; defina a balança padrão de cada colaborador.
+- No lançamento, a balança (podendo trocar) e o peso padrão (kg, maior que zero) são obrigatórios; o servidor também valida.
+- A data/hora do registro é gravada automaticamente pelo servidor.
+
 ## Segurança (verificada no servidor e no banco)
 - Senhas com hash scrypt; sessão de 8 h; bloqueio de 5 min após 5 erros; cookie HttpOnly/Secure/SameSite.
 - Lançamentos e presenças: chave única colaborador+formulário+data; UPDATE/DELETE bloqueados por gatilho do PostgreSQL.

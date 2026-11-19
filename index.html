@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="pt-BR"><head><meta charset="utf-8"><title>Controle de Formulários</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);--bg:#f3f5f9;--sf:#fff;--tx:#1b2433;--mu:#667085;--bd:#dde2ea;--pr:#1d4ed8;--ok:#16a34a;--no:#dc2626;--pe:#d99a00;--na:#9aa3b2}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0f141c;--sf:#18202b;--tx:#e8ecf3;--mu:#98a2b3;--bd:#2a3442;--pr:#6b9bff;--ok:#34d27b;--no:#ff6b6b;--pe:#f0b429;--na:#6b7686;color-scheme:dark}}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}*{box-sizing:border-box}
+body{margin:0;font:15px/1.45 system-ui,sans-serif;background:var(--bg);color:var(--tx);display:flex;min-height:100vh}
+nav{width:210px;background:var(--sf);border-right:1px solid var(--bd);padding:16px 10px;flex-shrink:0}
+nav h1{font-size:15px;margin:0 8px 14px}nav button{display:block;width:100%;text-align:left;border:0;background:none;color:var(--tx);padding:10px;border-radius:8px;font-size:14px;cursor:pointer}
+nav button.on{background:var(--pr);color:#fff}main{flex:1;padding:18px;min-width:0}
+@media(max-width:720px){body{flex-direction:column}nav{width:100%;display:flex;overflow-x:auto;padding:8px}nav h1{display:none}nav button{white-space:nowrap;width:auto}}
+.card{background:var(--sf);border:1px solid var(--bd);border-radius:12px;padding:14px;margin-bottom:14px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:14px}
+.k{font-size:26px;font-weight:700}.mu{color:var(--mu);font-size:13px}
+input,select,textarea,button.b{font:inherit;color:var(--tx);padding:8px;border:1px solid var(--bd);border-radius:8px;background:var(--sf);color:var(--tx)}
+button.b{background:var(--pr);color:#fff;border:0;cursor:pointer}button.g{background:var(--sf);color:var(--tx);border:1px solid var(--bd)}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
+.tw{overflow-x:auto}table{border-collapse:collapse;width:100%}th,td{text-align:left;padding:8px;border-bottom:1px solid var(--bd);white-space:nowrap}
+.tag{padding:2px 9px;border-radius:99px;color:#fff;font-size:12px}.F{background:var(--ok)}.N{background:var(--no)}.P{background:var(--pe)}.A{background:var(--na)}
+.bar{height:14px;border-radius:7px;background:var(--bd);overflow:hidden;display:flex;min-width:80px}.bar i{display:block}
+.lock{font-size:13px;color:var(--mu)}h2{margin:0 0 12px;font-size:19px}h3{margin:0 0 8px;font-size:15px}
+</style></head><body>
+<nav><h1>📋 Controle de Formulários</h1><div id="menu"></div></nav>
+<main><div id="msg" class="mu">Carregando…</div><div id="app"></div></main>
+<script>
+const SIT=["Presente","Ausente","Férias","Afastado","Folga"];
+const SIG={};const S={roles:{},forms:{},scales:{},emps:{},launches:{},att:{},rect:{}};
+let db,uid="anon",perfil="",isAdmin=false,canWrite=false,tab="dash",date=new Date().toISOString().slice(0,10);
+let per={a:date.slice(0,8)+"01",b:date},flt={e:"",r:"",f:"",s:""};
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const fmt=d=>d.split("-").reverse().join("/");
+const LAB={F:"Preenchido",N:"Não preenchido",P:"Pendente",A:"Não aplicável"};
+function toast(t){$("#msg").textContent=t;setTimeout(()=>{if($("#msg").textContent===t)$("#msg").textContent=""},6000)}
+async function audit(){}
+function listen(col,key){db.collection(col).onSnapshot(s=>{const o={};s.docs.forEach(d=>o[d.id]=d.data());const sg=JSON.stringify(o);if(sg===SIG[key])return;SIG[key]=sg;S[key]=o;render()},e=>toast("Erro ao ler "+col+": "+(e.message||e.code)))}
+const api=async(m,u,b)=>{const r=await fetch(u,{method:m,headers:{'Content-Type':'application/json'},body:b?JSON.stringify(b):undefined});const j=await r.json().catch(()=>({}));if(!r.ok)throw Object.assign(new Error(j.erro||r.status),{status:r.status});return j};
+const pollers=[],kick=()=>pollers.forEach(f=>f());
+db={collection(c){return{onSnapshot(cb,er){const f=async()=>{try{const j=await api("GET","/api/c/"+c);cb({docs:Object.entries(j.docs).map(([id,d])=>({id,data:()=>d}))})}catch(e){if(e.status===401)return location.reload();er&&er(e)}};pollers.push(f);f();setInterval(()=>{if(!document.hidden)f()},15000)},add:async o=>{const r=await api("POST","/api/c/"+c,o);kick();return r}}},
+ doc(p){const[c,i]=p.split("/");return{update:async o=>{await api("PATCH",`/api/c/${c}/${i}`,o);kick()},set:async o=>{await api("PUT",`/api/c/${c}/${i}`,o);kick()}}}};
+function loginScreen(){$("#msg").textContent="";document.querySelector("nav").style.display="none";
+  $("#app").innerHTML=`<div class="card" style="max-width:340px;margin:60px auto"><h2>📋 Controle de Formulários</h2><div class="row"><input id="lg" placeholder="Usuário" autocomplete="username" style="width:100%"></div><div class="row"><input id="pw" type="password" placeholder="Senha" autocomplete="current-password" style="width:100%"></div><div class="row"><label><input type="checkbox" id="sp"> Mostrar senha</label></div><button class="b" id="go" style="width:100%">Entrar</button></div>`;
+  const go=async()=>{try{await api("POST","/api/login",{login:$("#lg").value.trim(),senha:$("#pw").value});location.reload()}catch(e){toast(e.message)}};
+  $("#sp").onchange=e=>$("#pw").type=e.target.checked?"text":"password";$("#go").onclick=go;$("#pw").onkeydown=e=>e.key==="Enter"&&go()}
+let me;
+async function init(){
+  try{me=await api("GET","/api/me")}catch(e){return loginScreen()}
+  uid=me.login;perfil=me.perfil;isAdmin=perfil==="admin";canWrite=isAdmin||perfil==="gestor";
+  if(perfil==="colaborador"||perfil==="consulta")tab="dash";
+  [["roles","roles"],["forms","forms"],["scales","scales"],["emps","emps"],["launches","launches"],["attendance","att"],["rectifications","rect"]].forEach(x=>listen(...x));
+  $("#msg").textContent="";render();
+}
+const eff=l=>S.rect[l.id]?.novo??l.status;
+const activeForms=r=>Object.entries(S.forms).filter(([i,f])=>f.ativo!==false&&(S.roles[r]?.forms||[]).includes(i));
+function* cells(a,b){ // gera todas as obrigações do período
+  let d=new Date(a+"T00:00:00");const end=new Date(b+"T00:00:00");let n=0;
+  for(;d<=end&&n<400;d.setDate(d.getDate()+1),n++){const ds=d.toISOString().slice(0,10);
+    for(const [ei,e] of Object.entries(S.emps)){if(e.ativo===false||(e.adm&&e.adm>ds))continue;
+      const at=S.att[ei+"_"+ds]?.sit||"Presente";const role=S.roles[e.role];
+      for(const [fi,f] of activeForms(e.role)){const l=S.launches[ei+"_"+fi+"_"+ds];
+        let st=at!=="Presente"?"A":l?eff(l):"P";
+        yield{ei,emp:e.nome,fi,form:f.nome,role:role?.nome||"",setor:e.setor||"",ds,st,by:l?.por||S.att[ei+"_"+ds]?.por||"",obs:l?.obs||"",hora:l?.ts?new Date(l.ts).toLocaleString("pt-BR"):"",bal:l?.bal||"",peso:l?.pesoPadrao??"",sit:at}}}}
+}
+const stats=rows=>{const c={F:0,N:0,P:0,A:0};rows.forEach(r=>c[r.st]++);const base=c.F+c.N+c.P;return{...c,pct:base?Math.round(c.F/base*100):0}};
+const bar=c=>{const t=(c.F+c.N+c.P)||1;return`<div class="bar"><i style="width:${c.F/t*100}%;background:var(--ok)"></i><i style="width:${c.N/t*100}%;background:var(--no)"></i><i style="width:${c.P/t*100}%;background:var(--pe)"></i></div>`};
+function group(rows,k){const m={};rows.forEach(r=>(m[r[k]]??=[]).push(r));return Object.entries(m).map(([n,x])=>({n,...stats(x)}))}
+function render(){
+  const T=[["dash","📊 Painel"],["lan","✅ Lançamento"],["ges","🗂 Gestão"],["cad","⚙️ Cadastros",1],["ret","🔧 Retificações",1],["usr","👤 Usuários",1]];
+  $("#menu").innerHTML=T.filter(t=>(!t[2]||isAdmin)&&(t[0]!=="lan"||canWrite)&&(t[0]!=="ges"||perfil!=="colaborador"||true)).map(t=>`<button class="${tab===t[0]?"on":""}" data-t="${t[0]}">${t[1]}</button>`).join("")+`<button id="lo">Sair (${esc(uid)})</button>`;
+  $("#lo").onclick=async()=>{await api("POST","/api/logout");location.reload()};
+  document.querySelectorAll("#menu button[data-t]").forEach(b=>b.onclick=()=>{tab=b.dataset.t;render()});
+  if(document.activeElement&&/INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)&&tab==="cad"&&window._busy)return;
+  ({dash,lan,ges,cad,ret,usr})[tab]();
+}
+const perBox=()=>`<div class="row"><label>De <input type="date" id="pa" value="${per.a}"></label><label>até <input type="date" id="pb" value="${per.b}"></label></div>`;
+function bindPer(){$("#pa").onchange=e=>{per.a=e.target.value;render()};$("#pb").onchange=e=>{per.b=e.target.value;render()}}
+function dash(){
+  const rows=[...cells(per.a,per.b)],s=stats(rows),ativos=Object.values(S.emps).filter(e=>e.ativo!==false).length;
+  const day=group(rows,"ds").sort((a,b)=>a.n<b.n?-1:1),emp=group(rows,"emp").sort((a,b)=>b.N-a.N),rl=group(rows,"role"),fm=group(rows,"form").sort((a,b)=>b.N-a.N);
+  const list=(g,lim)=>g.slice(0,lim).map(x=>`<tr><td>${esc(x.n.length===10&&x.n[4]==="-"?fmt(x.n):x.n)}</td><td style="width:45%">${bar(x)}</td><td>${x.pct}%</td><td class="mu">${x.N} não prench.</td></tr>`).join("")||`<tr><td class="mu">Sem dados</td></tr>`;
+  $("#app").innerHTML=`<h2>Painel gerencial</h2>${perBox()}<div class="grid">
+  <div class="card"><div class="mu">Colaboradores ativos</div><div class="k">${ativos}</div></div>
+  <div class="card"><div class="mu">Esperados</div><div class="k">${s.F+s.N+s.P}</div></div>
+  <div class="card"><div class="mu">Preenchidos</div><div class="k" style="color:var(--ok)">${s.F}</div></div>
+  <div class="card"><div class="mu">Não preenchidos</div><div class="k" style="color:var(--no)">${s.N}</div></div>
+  <div class="card"><div class="mu">Pendentes</div><div class="k" style="color:var(--pe)">${s.P}</div></div>
+  <div class="card"><div class="mu">Não aplicáveis</div><div class="k" style="color:var(--na)">${s.A}</div></div>
+  <div class="card"><div class="mu">Conformidade</div><div class="k">${s.pct}%</div></div></div>
+  <div class="card"><h3>Cumprimento diário / evolução</h3><div class="tw"><table>${list(day,62)}</table></div></div>
+  <div class="card"><h3>Colaboradores com mais não preenchimentos</h3><div class="tw"><table>${list(emp,15)}</table></div></div>
+  <div class="card"><h3>Comparativo entre funções</h3><div class="tw"><table>${list(rl,20)}</table></div></div>
+  <div class="card"><h3>Ranking de formulários</h3><div class="tw"><table>${list(fm,15)}</table></div></div>`;bindPer();
+}
+async function claim(id,col,data){try{await api("POST",`/api/claim/${col}/${id}`,data);kick();return true}catch(e){if(e.status===409)return false;throw e}}
+let _ck;function clock(){clearInterval(_ck);const f=()=>{const e=$("#clk");if(e)e.textContent=new Date().toLocaleTimeString("pt-BR")};f();_ck=setInterval(f,1000)}
+function lan(){
+  const emps=Object.entries(S.emps).filter(([i,e])=>e.ativo!==false&&(!e.adm||e.adm<=date)).sort((a,b)=>a[1].nome.localeCompare(b[1].nome));
+  let h=`<h2>Lançamento diário</h2><div class="row"><input type="date" id="dt" value="${date}"><span class="mu">Hora atual: <b id="clk"></b></span><span class="mu">${canWrite?"":"Seu acesso é somente leitura."}</span></div>`;
+  if(!emps.length)h+=`<div class="card mu">Nenhum colaborador ativo. O administrador deve cadastrar em “Cadastros”.</div>`;
+  for(const [ei,e] of emps){
+    const at=S.att[ei+"_"+date],fs=activeForms(e.role),locked=!!at;
+    h+=`<div class="card" data-e="${ei}"><h3>${esc(e.nome)} – ${esc(S.roles[e.role]?.nome||"sem função")} <span class="mu">${esc(e.mat||"")}</span></h3>
+    <div class="row"><select class="sit" ${locked?"disabled":""}>${SIT.map(s=>`<option ${(at?.sit||"Presente")===s?"selected":""}>${s}</option>`).join("")}</select>${locked?`<span class="lock">🔒 Confirmado</span>`:""}</div>`;
+    if(fs.some(([fi,f])=>f.usaBal&&!S.launches[ei+"_"+fi+"_"+date])&&(!at||at.sit==="Presente"))h+=`<div class="row"><label>Balança utilizada <select class="bal"><option value="">— selecione —</option>${Object.entries(S.scales).filter(([k,s])=>s.ativo!==false).map(([k,s])=>`<option value="${k}" ${e.balanca===k?"selected":""}>${esc(s.nome)}${s.cod?" ("+esc(s.cod)+")":""}</option>`).join("")}</select></label><label>Peso padrão (kg) <input class="pp" type="number" step="any" min="0" placeholder="ex.: 1.000" style="width:120px"></label><span class="mu">balança padrão: ${esc(S.scales[e.balanca]?.nome||"nenhuma")} – pode trocar</span></div>`;
+    h+=fs.map(([fi,f])=>{const l=S.launches[ei+"_"+fi+"_"+date];
+      if(l)return`<div class="row">${esc(f.nome)} <span class="tag ${eff(l)}">${LAB[eff(l)]}</span><span class="lock">🔒 ${esc(l.por)} · ${esc(new Date(l.ts).toLocaleString("pt-BR"))}${l.bal?" · Balança "+esc(l.bal):""}${l.pesoPadrao?" · Peso padrão "+l.pesoPadrao+" kg":""}${S.rect[l.id]?" (retificado)":""}</span></div>`;
+      if(at&&at.sit!=="Presente")return`<div class="row">${esc(f.nome)} <span class="tag A">Não aplicável</span></div>`;
+      return`<div class="row" data-f="${fi}">${esc(f.nome)} <label><input type="radio" name="${ei}_${fi}" value="F"> Preenchido</label><label><input type="radio" name="${ei}_${fi}" value="N"> Não preenchido</label></div>`}).join("");
+    if(!locked||fs.some(([fi])=>!S.launches[ei+"_"+fi+"_"+date]&&at?.sit==="Presente"))h+=`<div class="row"><input class="obs" placeholder="Observações" style="flex:1"><button class="b cf" ${canWrite?"":"disabled"}>CONFIRMAR LANÇAMENTO</button></div>`;
+    h+=`</div>`}
+  $("#app").innerHTML=h;$("#dt").onchange=e=>{date=e.target.value;render()};clock();
+  document.querySelectorAll(".cf").forEach(b=>b.onclick=()=>confirmar(b.closest(".card")).catch(e=>toast("Erro ao gravar: "+(e.message||e.code||e))));
+}
+async function confirmar(card){
+  const ei=card.dataset.e,e=S.emps[ei],sit=card.querySelector(".sit").value,obs=card.querySelector(".obs").value.trim();
+  const pend=[...card.querySelectorAll("[data-f]")].map(r=>({fi:r.dataset.f,v:(r.querySelector("input:checked")||{}).value}));
+  if(sit==="Presente"&&pend.some(p=>!p.v))return toast("Marque Preenchido ou Não preenchido em todos os formulários antes de confirmar.");
+  const balSel=card.querySelector(".bal"),balId=balSel?balSel.value:"";
+  if(sit==="Presente"&&balSel&&!balId)return toast("Selecione a balança utilizada antes de confirmar.");
+  const bs=S.scales[balId],balNome=bs?bs.nome+(bs.cod?" ("+bs.cod+")":""):"";
+  const pp=card.querySelector(".pp"),peso=pp?parseFloat(String(pp.value).replace(",",".")):NaN;
+  if(sit==="Presente"&&pp&&!(peso>0))return toast("Informe o peso padrão (maior que zero) antes de confirmar.");
+  if(card.dataset.arm!=="1"){card.dataset.arm="1";card.querySelector(".cf").textContent="CLIQUE DE NOVO PARA CONFIRMAR (ficará bloqueado)";return toast("Clique novamente para confirmar. Após isso o registro fica bloqueado.")}
+  const ts=new Date().toISOString();let dup=0,ok=0;
+  const a=S.att[ei+"_"+date];
+  if(!a){const r=await claim(ei+"_"+date,"attendance",{emp:ei,ds:date,sit,por:uid,ts});r?ok++:dup++}
+  if(sit==="Presente")for(const p of pend){const id=ei+"_"+p.fi+"_"+date;
+    const r=await claim(id,"launches",{id,emp:ei,form:p.fi,ds:date,status:p.v,obs,por:uid,ts,bal:S.forms[p.fi]?.usaBal?balNome:"",balId:S.forms[p.fi]?.usaBal?balId:"",pesoPadrao:S.forms[p.fi]?.usaBal?peso:null,roleNome:S.roles[e.role]?.nome||""});r?ok++:dup++}
+  await audit("lancamento",ei+" "+date+" ok="+ok+" bloqueados="+dup);
+  toast(dup?"Este formulário já possui um lançamento confirmado para este colaborador nesta data. Registro bloqueado.":"Lançamento confirmado e bloqueado.");
+}
+function ges(){
+  let rows=[...cells(per.a,per.b)].filter(r=>(!flt.e||r.ei===flt.e)&&(!flt.r||r.role===flt.r)&&(!flt.f||r.fi===flt.f)&&(!flt.s||r.st===flt.s));
+  const opt=(o,v)=>`<option value="">Todos</option>`+o.map(([k,n])=>`<option value="${esc(k)}" ${v===k?"selected":""}>${esc(n)}</option>`).join("");
+  $("#app").innerHTML=`<h2>Gestão de preenchimentos</h2>${perBox()}<div class="row">
+  <select id="fe">${opt(Object.entries(S.emps).map(([i,e])=>[i,e.nome]),flt.e)}</select>
+  <select id="fr">${opt([...new Set(Object.values(S.roles).map(r=>r.nome))].map(n=>[n,n]),flt.r)}</select>
+  <select id="ff">${opt(Object.entries(S.forms).map(([i,f])=>[i,f.nome]),flt.f)}</select>
+  <select id="fs">${opt(Object.entries(LAB),flt.s)}</select><button class="b g" id="ex">Exportar CSV (Excel)</button></div>
+  <div class="card tw"><table><tr><th>Colaborador</th><th>Função</th><th>Formulário</th><th>Data</th><th>Situação</th><th>Gestor</th><th>Registrado em</th><th>Balança</th><th>Peso padrão (kg)</th><th>Obs.</th></tr>
+  ${rows.slice(0,800).map(r=>`<tr><td>${esc(r.emp)}</td><td>${esc(r.role)}</td><td>${esc(r.form)}</td><td>${fmt(r.ds)}</td><td><span class="tag ${r.st}">${LAB[r.st]}${r.sit!=="Presente"?" – "+r.sit:""}</span></td><td>${esc(r.by)}</td><td>${esc(r.hora)}</td><td>${esc(r.bal)}</td><td>${esc(r.peso)}</td><td>${esc(r.obs)}</td></tr>`).join("")||`<tr><td class="mu">Sem registros</td></tr>`}</table></div>`;
+  bindPer();[["fe","e"],["fr","r"],["ff","f"],["fs","s"]].forEach(([i,k])=>$("#"+i).onchange=e=>{flt[k]=e.target.value;render()});
+  $("#ex").onclick=async()=>{
+    const csv="\ufeffColaborador;Função;Formulário;Data;Situação;Gestor;Registrado em;Balança;Peso padrão (kg);Observações\n"+rows.map(r=>[r.emp,r.role,r.form,fmt(r.ds),LAB[r.st],r.by,r.hora,r.bal,r.peso,r.obs].map(x=>'"'+String(x).replace(/"/g,'""')+'"').join(";")).join("\n");
+    const u=URL.createObjectURL(new Blob([csv],{type:"text/csv"})),l=document.createElement("a");l.href=u;l.download="preenchimentos.csv";l.click();URL.revokeObjectURL(u)};
+}
+async function add(col,obj){window._busy=0;await db.collection(col).add(obj);await audit("cadastro "+col,JSON.stringify(obj))}
+function cad(){
+  const ro=Object.entries(S.roles),fo=Object.entries(S.forms);
+  $("#app").innerHTML=`<h2>Cadastros</h2>
+  <div class="card"><h3>Formulários</h3><div class="row"><input id="fn" placeholder="Nome"><input id="fc" placeholder="Código"><select id="fp"><option>Diário</option><option>Semanal</option><option>Mensal</option></select><label><input type="checkbox" id="fb"> Usa balança</label><button class="b" id="fa">Adicionar</button></div>
+  <div class="tw"><table>${fo.map(([i,f])=>`<tr><td>${esc(f.nome)}</td><td>${esc(f.cod||"")}</td><td>${f.per}</td><td><button class="b g" data-ub="${i}">${f.usaBal?"Usa balança ✓":"Não usa balança"}</button></td><td><button class="b g" data-tf="${i}">${f.ativo===false?"Ativar":"Inativar"}</button></td></tr>`).join("")}</table></div></div>
+  <div class="card"><h3>Balanças</h3><div class="row"><input id="bn" placeholder="Nome (ex.: Balança 1)"><input id="bc" placeholder="Código/patrimônio"><button class="b" id="ba">Adicionar</button></div><div class="tw"><table>${Object.entries(S.scales).map(([i,s])=>`<tr><td>${esc(s.nome)}</td><td>${esc(s.cod||"")}</td><td><button class="b g" data-ts="${i}">${s.ativo===false?"Ativar":"Inativar"}</button></td></tr>`).join("")}</table></div></div>
+  <div class="card"><h3>Funções e formulários obrigatórios</h3><div class="row"><input id="rn" placeholder="Nome da função"><button class="b" id="ra">Adicionar</button></div>
+  ${ro.map(([i,r])=>`<div class="row"><b>${esc(r.nome)}</b>${fo.map(([fi,f])=>`<label><input type="checkbox" data-r="${i}" data-f="${fi}" ${(r.forms||[]).includes(fi)?"checked":""}> ${esc(f.nome)}</label>`).join("")}</div>`).join("")}</div>
+  <div class="card"><h3>Colaboradores</h3><div class="row"><input id="en" placeholder="Nome completo"><input id="em" placeholder="Matrícula"><input id="es" placeholder="Setor"><select id="er">${ro.map(([i,r])=>`<option value="${i}">${esc(r.nome)}</option>`).join("")}</select><input type="date" id="ed" value="${date}"><button class="b" id="ea">Adicionar</button></div>
+  <div class="tw"><table>${Object.entries(S.emps).map(([i,e])=>`<tr><td>${esc(e.nome)}</td><td>${esc(e.mat||"")}</td><td>${esc(e.setor||"")}</td><td><select data-er="${i}">${ro.map(([ri,r])=>`<option value="${ri}" ${e.role===ri?"selected":""}>${esc(r.nome)}</option>`).join("")}</select></td><td><select data-eb="${i}"><option value="">— sem balança padrão —</option>${Object.entries(S.scales).filter(([k,s])=>s.ativo!==false).map(([k,s])=>`<option value="${k}" ${e.balanca===k?"selected":""}>${esc(s.nome)}</option>`).join("")}</select></td><td><button class="b g" data-te="${i}">${e.ativo===false?"Ativar":"Inativar"}</button></td></tr>`).join("")}</table></div></div>`;
+  $("#fa").onclick=()=>$("#fn").value.trim()&&add("forms",{nome:$("#fn").value.trim(),cod:$("#fc").value,per:$("#fp").value,usaBal:$("#fb").checked,ativo:true});
+  $("#ra").onclick=()=>$("#rn").value.trim()&&add("roles",{nome:$("#rn").value.trim(),forms:[]});
+  $("#ea").onclick=()=>$("#en").value.trim()&&$("#er").value&&add("emps",{nome:$("#en").value.trim(),mat:$("#em").value,setor:$("#es").value,role:$("#er").value,adm:$("#ed").value,ativo:true});
+  $("#ba").onclick=()=>$("#bn").value.trim()&&add("scales",{nome:$("#bn").value.trim(),cod:$("#bc").value,ativo:true});
+  document.querySelectorAll("[data-ts]").forEach(b=>b.onclick=()=>db.doc("scales/"+b.dataset.ts).update({ativo:S.scales[b.dataset.ts].ativo===false}));
+  document.querySelectorAll("[data-ub]").forEach(b=>b.onclick=()=>db.doc("forms/"+b.dataset.ub).update({usaBal:!S.forms[b.dataset.ub].usaBal}));
+  document.querySelectorAll("[data-eb]").forEach(s=>s.onchange=async()=>{await db.doc("emps/"+s.dataset.eb).update({balanca:s.value})});
+  document.querySelectorAll("[data-tf]").forEach(b=>b.onclick=()=>db.doc("forms/"+b.dataset.tf).update({ativo:S.forms[b.dataset.tf].ativo===false}));
+  document.querySelectorAll("[data-te]").forEach(b=>b.onclick=()=>db.doc("emps/"+b.dataset.te).update({ativo:S.emps[b.dataset.te].ativo===false}));
+  document.querySelectorAll("[data-er]").forEach(s=>s.onchange=async()=>{await db.doc("emps/"+s.dataset.er).update({role:s.value});audit("mudança de função",s.dataset.er+" → "+s.value)});
+  document.querySelectorAll("[data-r]").forEach(c=>c.onchange=()=>{const r=S.roles[c.dataset.r],set=new Set(r.forms||[]);c.checked?set.add(c.dataset.f):set.delete(c.dataset.f);db.doc("roles/"+c.dataset.r).update({forms:[...set]})});
+  document.querySelectorAll("#app input[id],#app select[id]").forEach(x=>{x.onfocus=()=>window._busy=1;x.onblur=()=>window._busy=0});
+}
+function ret(){
+  const ls=Object.values(S.launches).sort((a,b)=>a.ds<b.ds?1:-1).slice(0,150);
+  $("#app").innerHTML=`<h2>Retificações (somente administrador)</h2><div class="card mu">O registro original permanece intacto; a retificação é gravada à parte com justificativa, valor anterior e novo, data/hora e responsável.</div>
+  <div class="card"><input id="rj" placeholder="Justificativa obrigatória (preencha antes de clicar em Retificar)" style="width:100%"></div><div class="card tw"><table><tr><th>Colaborador</th><th>Formulário</th><th>Data</th><th>Original</th><th>Atual</th><th></th></tr>
+  ${ls.map(l=>`<tr><td>${esc(S.emps[l.emp]?.nome)}</td><td>${esc(S.forms[l.form]?.nome)}</td><td>${fmt(l.ds)}</td><td><span class="tag ${l.status}">${LAB[l.status]}</span></td><td><span class="tag ${eff(l)}">${LAB[eff(l)]}</span></td><td><button class="b g" data-l="${l.id}">Retificar</button></td></tr>`).join("")}</table></div>`;
+  document.querySelectorAll("[data-l]").forEach(b=>b.onclick=async()=>{
+    const l=S.launches[b.dataset.l],novo=eff(l)==="F"?"N":"F",j=$("#rj").value;
+    if(!j||!j.trim())return toast("Justificativa obrigatória.");
+    await db.doc("rectifications/"+l.id).set({id:l.id,anterior:eff(l),novo,just:j.trim(),por:uid,ts:new Date().toISOString()});
+    audit("retificação",l.id+" "+eff(l)+"→"+novo+" | "+j)});
+}
+async function usr(){
+  let us=[];try{us=(await api("GET","/api/users")).users}catch(e){return toast(e.message)}
+  const eo=Object.entries(S.emps).map(([i,e])=>`<option value="${i}">${esc(e.nome)}</option>`).join("");
+  $("#app").innerHTML=`<h2>Usuários e acessos</h2><div class="card"><div class="row"><input id="ul" placeholder="Login (matrícula ou e-mail)"><input id="up" type="password" placeholder="Senha inicial (8+)"><select id="uf"><option value="gestor">Gestor</option><option value="colaborador">Colaborador</option><option value="consulta">Consulta</option><option value="admin">Administrador</option></select><select id="ue"><option value="">— colaborador vinculado —</option>${eo}</select><button class="b" id="ua">Criar acesso</button><a class="b g" style="padding:8px;border-radius:8px;text-decoration:none;color:var(--tx)" href="/api/backup">Baixar backup (JSON)</a></div></div>
+  <div class="card tw"><table><tr><th>Login</th><th>Perfil</th><th>Colaborador</th><th>Último acesso</th><th>Status</th><th></th></tr>${us.map(u=>`<tr><td>${esc(u.login)}</td><td>${u.perfil}</td><td>${esc(S.emps[u.empId]?.nome||"")}</td><td>${u.ultimo?new Date(u.ultimo).toLocaleString("pt-BR"):"—"}</td><td>${u.ativo?"Ativo":"Bloqueado"}</td><td><button class="b g" data-b="${esc(u.login)}" data-a="${u.ativo}">${u.ativo?"Bloquear":"Desbloquear"}</button> <button class="b g" data-s="${esc(u.login)}">Redefinir senha</button></td></tr>`).join("")}</table></div>`;
+  $("#ua").onclick=async()=>{try{await api("POST","/api/users",{login:$("#ul").value.trim(),senha:$("#up").value,perfil:$("#uf").value,empId:$("#ue").value});usr()}catch(e){toast(e.message)}};
+  document.querySelectorAll("[data-b]").forEach(b=>b.onclick=async()=>{try{await api("PATCH","/api/users/"+b.dataset.b,{ativo:b.dataset.a!=="1"});usr()}catch(e){toast(e.message)}});
+  document.querySelectorAll("[data-s]").forEach(b=>b.onclick=async()=>{const s=prompt("Nova senha (8+ caracteres) para "+b.dataset.s);if(s)try{await api("PATCH","/api/users/"+b.dataset.s,{senha:s});toast("Senha redefinida.")}catch(e){toast(e.message)}});
+}
+init();
+</script></body></html>
